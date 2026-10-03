@@ -38,11 +38,19 @@ async function ensureSchema(){
   await sql`CREATE INDEX IF NOT EXISTS idx_coordinators_name ON coordinators(name)`;
   const [seedMarker]=await sql`INSERT INTO app_metadata(key,value) VALUES('initial_seed','1') ON CONFLICT(key) DO NOTHING RETURNING key`;
   if(seedMarker) await sql`INSERT INTO coordinators(name,slug,photo,designation,department,team_role,society,bio,organization,event,email,phone,instagram,linkedin,links) VALUES(${'ABHINAV R'},${'arjun'},${'/demo-coordinator.png'},${'Lead Coordinator'},${''},${'DESIGN LEAD'},${'SPS Society'},${'Design Lead at IEEE SPS Society.'},${'IEEE'},${"VYORA'26"},${''},${'85903 20353'},${'https://www.instagram.com/achu_abhi05?stkn=MWJlZGxnZHZyemxlZA=='},${'https://www.linkedin.com/in/abhinav-r-651351357?utm_source=share_via&utm_content=profile&utm_medium=member_android'},${'[]'}::jsonb) ON CONFLICT(slug) DO NOTHING`;
-  const [{adminCount}]=await sql`SELECT COUNT(*)::int AS "adminCount" FROM admins`;
-  if(adminCount===0 && process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD?.length>=12){
-   const salt=randomBytes(16).toString('hex');
-   const hash=`${salt}:${scryptSync(process.env.ADMIN_PASSWORD,salt,64).toString('hex')}`;
-   await sql`INSERT INTO admins(email,password_hash) VALUES(${process.env.ADMIN_EMAIL.trim().toLowerCase()},${hash}) ON CONFLICT(email) DO NOTHING`;
+  if(process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD?.length>=12){
+   const email=process.env.ADMIN_EMAIL.trim().toLowerCase();
+   const [admin]=await sql`SELECT id,password_hash FROM admins WHERE email=${email}`;
+   const [salt,stored]=admin?.password_hash.split(':')||[];
+   const matches=admin && stored && timingSafeEqual(scryptSync(process.env.ADMIN_PASSWORD,salt,64),Buffer.from(stored,'hex'));
+   if(!matches){
+    const newSalt=randomBytes(16).toString('hex');
+    const hash=`${newSalt}:${scryptSync(process.env.ADMIN_PASSWORD,newSalt,64).toString('hex')}`;
+    if(admin){
+     const updated=await sql`UPDATE admins SET password_hash=${hash} WHERE id=${admin.id} AND password_hash=${admin.password_hash} RETURNING id`;
+     if(updated.length)await sql`DELETE FROM sessions WHERE admin_id=${admin.id}`;
+    }else await sql`INSERT INTO admins(email,password_hash) VALUES(${email},${hash}) ON CONFLICT(email) DO NOTHING`;
+   }
   }
  })().catch(error=>{schemaPromise=null;throw error});
  return schemaPromise;
