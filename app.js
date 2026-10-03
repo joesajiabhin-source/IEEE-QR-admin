@@ -15,7 +15,7 @@ app.set('trust proxy', 1);
 app.use(express.json({limit:'200kb'}));
 app.use((_req,res,next)=>{res.set('X-Content-Type-Options','nosniff');res.set('Referrer-Policy','strict-origin-when-cross-origin');res.set('X-Frame-Options','DENY');next();});
 const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null;
-const upload = multer({storage:multer.memoryStorage(),limits:{fileSize:5*1024*1024}});
+const upload = multer({storage:multer.memoryStorage(),limits:{fileSize:4*1024*1024}});
 const root = path.dirname(fileURLToPath(import.meta.url));
 const hashToken = token => createHash('sha256').update(token).digest('hex');
 const profileFromRow = row => row ? {...row,links:typeof row.links==='string'?JSON.parse(row.links):row.links} : null;
@@ -129,6 +129,6 @@ app.get('/api/admin/qr-all',requireAdmin,async(req,res,next)=>{try{const rows=aw
 
 app.use(express.static(path.join(root,'public')));
 app.get('/{*path}',(_req,res)=>res.sendFile(path.join(root,'public','index.html')));
-app.use((error,_req,res,_next)=>{console.error(error);if(error instanceof multer.MulterError)return sendError(res,400,error.code==='LIMIT_FILE_SIZE'?'Image must be under 5 MB.':error.message);if(!res.headersSent)sendError(res,500,'Something went wrong.')});
+app.use((error,_req,res,_next)=>{console.error(error);if(error instanceof multer.MulterError)return sendError(res,400,error.code==='LIMIT_FILE_SIZE'?'Image must be under 4 MB.':error.message);if(!res.headersSent)sendError(res,500,'Something went wrong.')});
 if(!process.env.VERCEL){const port=Number(process.env.PORT||3001);app.listen(port,()=>console.log(`Admin API ready on http://localhost:${port}`));}
 export default app;
